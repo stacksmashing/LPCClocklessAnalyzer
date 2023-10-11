@@ -1,14 +1,14 @@
-#ifndef SIMPLESERIAL_ANALYZER_SETTINGS
-#define SIMPLESERIAL_ANALYZER_SETTINGS
+#ifndef LPCCLOCKLESS_ANALYZER_SETTINGS
+#define LPCCLOCKLESS_ANALYZER_SETTINGS
 
 #include <AnalyzerSettings.h>
 #include <AnalyzerTypes.h>
 
-class SimpleSerialAnalyzerSettings : public AnalyzerSettings
+class LPCClocklessAnalyzerSettings : public AnalyzerSettings
 {
 public:
-	SimpleSerialAnalyzerSettings();
-	virtual ~SimpleSerialAnalyzerSettings();
+	LPCClocklessAnalyzerSettings();
+	virtual ~LPCClocklessAnalyzerSettings();
 
 	virtual bool SetSettingsFromInterfaces();
 	void UpdateInterfacesFromSettings();
@@ -16,12 +16,16 @@ public:
 	virtual const char* SaveSettings();
 
 	
-	Channel mInputChannel;
+	// Channel mInputChannel;
+	Channel mLaddChannel[4];
+	Channel mFrameChannel;
 	U32 mBitRate;
 
 protected:
-	std::auto_ptr< AnalyzerSettingInterfaceChannel >	mInputChannelInterface;
-	std::auto_ptr< AnalyzerSettingInterfaceInteger >	mBitRateInterface;
+	// std::unique_ptr< AnalyzerSettingInterfaceChannel >	mInputChannelInterface;
+	std::unique_ptr< AnalyzerSettingInterfaceChannel >	mLaddChannelInterface[4];
+	std::unique_ptr< AnalyzerSettingInterfaceChannel >	mFrameChannelInterface;
+	std::unique_ptr< AnalyzerSettingInterfaceInteger >	mBitRateInterface;
 };
 
-#endif //SIMPLESERIAL_ANALYZER_SETTINGS
+#endif //LPCCLOCKLESS_ANALYZER_SETTINGS
