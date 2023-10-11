@@ -35,6 +35,11 @@ protected: //vars
 	U32 mSampleRateHz;
 	U32 mStartOfStopBitOffset;
 	U32 mEndOfStopBitOffset;
+
+private: 
+	uint8_t getBits();
+	void advanceAllToFrame();
+	void addFrameLabel(uint64_t start, uint64_t end, uint64_t label);
 };
 
 extern "C" ANALYZER_EXPORT const char* __cdecl GetAnalyzerName();

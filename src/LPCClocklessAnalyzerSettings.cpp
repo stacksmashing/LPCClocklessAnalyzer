@@ -5,7 +5,7 @@
 LPCClocklessAnalyzerSettings::LPCClocklessAnalyzerSettings() :
 // :	mInputChannel( UNDEFINED_CHANNEL ),
 	mFrameChannel( UNDEFINED_CHANNEL ),
-	mBitRate( 9600 )
+	mBitRate( 25000000 )
 {
 	ClearChannels();
 	for(int i=0; i < 4; i++) {
@@ -29,7 +29,7 @@ LPCClocklessAnalyzerSettings::LPCClocklessAnalyzerSettings() :
 
 	mBitRateInterface.reset( new AnalyzerSettingInterfaceInteger() );
 	mBitRateInterface->SetTitleAndTooltip( "Bit Rate (Bits/S)",  "Specify the bit rate in bits per second." );
-	mBitRateInterface->SetMax( 6000000 );
+	mBitRateInterface->SetMax( 50000000 );
 	mBitRateInterface->SetMin( 1 );
 	mBitRateInterface->SetInteger( mBitRate );
 
