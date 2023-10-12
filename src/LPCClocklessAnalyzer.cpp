@@ -48,9 +48,44 @@ void LPCClocklessAnalyzer::addFrameLabel(uint64_t start, uint64_t end, uint64_t 
 	ReportProgress(end);
 }
 
+uint32_t LPCClocklessAnalyzer::readAddress() {
+		uint32_t address = 0;
+		for(int i=0; i < 4; i++) {
+			mFrame->Advance( mSamplesPerBit );
+			advanceAllToFrame();
+
+			address |= getBits() << 4 * (3-i);
+			mResults->AddMarker( mFrame->GetSampleNumber(), AnalyzerResults::Dot, mSettings->mFrameChannel );
+		}
+		return address;
+}
+
+void LPCClocklessAnalyzer::skipTar() {
+	mFrame->Advance( mSamplesPerBit );
+	mFrame->Advance( mSamplesPerBit );
+}
+
+uint8_t LPCClocklessAnalyzer::readData() {
+	uint8_t data = 0;
+	mFrame->Advance( mSamplesPerBit );
+	advanceAllToFrame();
+	data = getBits();
+	mFrame->Advance( mSamplesPerBit );
+	advanceAllToFrame();
+	data |= getBits() << 4;
+	return data;
+}
+
+uint8_t LPCClocklessAnalyzer::readSync() {
+	mFrame->Advance( mSamplesPerBit );
+	advanceAllToFrame();
+	return getBits();
+}
+
 void LPCClocklessAnalyzer::WorkerThread()
 {
 	mSampleRateHz = GetSampleRate();
+	mSamplesPerBit = mSampleRateHz / (mSettings->mBitRate * 1000);
 	mFrame = GetAnalyzerChannelData( mSettings->mFrameChannel );
 	for(int i=0; i < 4; i++) {
 		mLadd[i] = GetAnalyzerChannelData( mSettings->mLaddChannel[i] );
@@ -60,14 +95,19 @@ void LPCClocklessAnalyzer::WorkerThread()
 
 
 
-// -       U32 samples_per_bit = mSampleRateHz / mSettings->mBitRate;
+// -       U32 mSamplesPerBit = mSampleRateHz / mSettings->mBitRate;
 
-	U32 samples_per_bit = mSampleRateHz / (mSettings->mBitRate * 1000);
-	std::cout << "Samples per bit: " << samples_per_bit << std::endl;
+	// mSamplesPerBit = mSampleRateHz / (mSettings->mBitRate * 1000);
+	std::cout << "Samples per bit: " << mSamplesPerBit << std::endl;
 	// U32 samples_to_first_center_of_first_data_bit = U32( 1.5 * double( mSampleRateHz ) / double( mSettings->mBitRate ) );
 
 	for( ; ; )
 	{
+
+		// Frame f;
+		// f.mType = 0x99;
+
+
 		bool is_write = false;
 
 		U8 data = 0;
@@ -77,7 +117,11 @@ void LPCClocklessAnalyzer::WorkerThread()
 		if( mFrame->GetBitState() == BIT_HIGH )
 			mFrame->AdvanceToNextEdge();
 		
-		mFrame->Advance(samples_per_bit/2);
+
+
+		uint64_t total_starting_sample = mFrame->GetSampleNumber();
+
+		mFrame->Advance(mSamplesPerBit/2);
 		advanceAllToFrame();
 		// Check pattern
 		uint8_t bits = getBits();
@@ -91,25 +135,6 @@ void LPCClocklessAnalyzer::WorkerThread()
 			ReportProgress( mFrame->GetSampleNumber() );
 			continue;
 		}
-		
-		
-		// mLadd[0]->AdvanceToAbsPosition(mFrame->GetSampleNumber());
-		// // Often the ladd lines are delayed to the actual clock transition in my testing.
-		// if( mLadd[0]->GetBitState() == BIT_HIGH ) {
-		// 	mLadd[0]->AdvanceToNextEdge();
-		// }
-
-
-		// mFrame->AdvanceToAbsPosition(mLadd[0]->GetSampleNumber());
-		// for(int i=1; i < 4; i++) {
-		// 	mLadd[i]->AdvanceToAbsPosition(mLadd[0]->GetSampleNumber());
-		// }
-		
-		// std::cout << "Advancing..." << mFrame->GetSampleNumber() << std::endl;
-		
-		// mFrame->Advance(samples_per_bit/2);
-
-		// mSerial->AdvanceToNextEdge(); //falling edge -- beginning of the start bit
 
 		U64 starting_sample = mFrame->GetSampleNumber();
 
@@ -117,71 +142,72 @@ void LPCClocklessAnalyzer::WorkerThread()
 		// Go to CYCTYPE + DIR
 		// 0000 = read
 		// 0010 = write
-		
-		mFrame->Advance( samples_per_bit );
+		mFrame->Advance( mSamplesPerBit );
 		advanceAllToFrame();
-		
+
 		uint8_t cyctype_dir = getBits();
 		if(cyctype_dir == 0x02) {
-			printf("Is write\n");
+			// printf("Is write\n");
 			is_write = true;
+			// f.is_write = true;
+		} else {
+			// f.is_write = false;
 		}
-		addFrameLabel(starting_sample, mFrame->GetSampleNumber(), cyctype_dir);
-		// Frame frame;
-		// frame.mData1 = cyctype_dir;
-		// frame.mFlags = 0;
-		// frame.mStartingSampleInclusive = starting_sample;
-		// frame.mEndingSampleInclusive = mFrame->GetSampleNumber();
-
-		// mResults->AddFrame( frame );
-		// mResults->CommitResults();
+		// addFrameLabel(starting_sample, mFrame->GetSampleNumber(), cyctype_dir);
 		//let's put a dot exactly where we sample this bit:
 		mResults->AddMarker( mFrame->GetSampleNumber(), AnalyzerResults::Dot, mSettings->mFrameChannel );
 
 		starting_sample = mFrame->GetSampleNumber();
 		// Iterate over address fields
-		uint32_t address = 0;
-		for(int i=0; i < 4; i++) {
-			mFrame->Advance( samples_per_bit );
-			advanceAllToFrame();
+		uint32_t address = readAddress();
+		// f.address = address;
+		// addFrameLabel(starting_sample, mFrame->GetSampleNumber(), address);
 
-			address |= getBits() << 4 * (3-i);
-			mResults->AddMarker( mFrame->GetSampleNumber(), AnalyzerResults::Dot, mSettings->mFrameChannel );
+
+
+		// Read data/TAR
+		if(is_write) {
+			starting_sample = mFrame->GetSampleNumber();
+			data = readData();
+			// f.data = data;
+			// addFrameLabel(starting_sample, mFrame->GetSampleNumber(), data);
+			skipTar();
+			starting_sample = mFrame->GetSampleNumber();
+			uint8_t sync = readSync();
+			// addFrameLabel(starting_sample, mFrame->GetSampleNumber(), sync);
+			skipTar();
+		} else {
+			skipTar();
+			// sync field
+			starting_sample = mFrame->GetSampleNumber();
+			while(readSync() != 0) {
+				
+			}
+			// uint8_t sync = readSync();
+			// addFrameLabel(starting_sample, mFrame->GetSampleNumber(), sync);
+
+			// data field
+			starting_sample = mFrame->GetSampleNumber();
+			data = readData();
+			// f.data = data;
+			// addFrameLabel(starting_sample, mFrame->GetSampleNumber(), data);
+
+			skipTar();
 		}
-		addFrameLabel(starting_sample, mFrame->GetSampleNumber(), address);
-		// frame.mData1 = address;
-		// frame.mFlags = 0;
-		// frame.mStartingSampleInclusive = starting_sample;
-		// frame.mEndingSampleInclusive = mFrame->GetSampleNumber();
 
-		// mResults->AddFrame( frame );
-		// mResults->CommitResults();
+		uint64_t transfer =
+			((uint64_t)cyctype_dir << 40) |
+			((uint64_t)address << 8) |
+			(data);
+		
+		addFrameLabel(total_starting_sample, mFrame->GetSampleNumber(), transfer);
+		// f.mFlags = 0;
+		// f.mStartingSampleInclusive = total_starting_sample;
+		// f.mEndingSampleInclusive = mFrame->GetSampleNumber();
+		// mResults->AddFrame( f );
 
-
-		// Next bits depend on whether read or write
-
-
-
-			// if( mSerial->GetBitState() == BIT_HIGH )
-			// 	data |= mask;
-
-			// mFrame->Advance( samples_per_bit );
-
-			// mask = mask >> 1;
-		// }
-
-
-		//we have a byte to save. 
-		// Frame frame;
-		// // frame.mData1 = data;
-		// frame.mFlags = 0;
-		// frame.mStartingSampleInclusive = starting_sample;
-		// frame.mEndingSampleInclusive = mFrame->GetSampleNumber();
-
-		// mResults->AddFrame( frame );
-		// mResults->CommitResults();
-		// ReportProgress( frame.mEndingSampleInclusive );
-
+		mResults->CommitResults();
+		ReportProgress(mFrame->GetSampleNumber());
 		mFrame->AdvanceToNextEdge();
 	}
 }

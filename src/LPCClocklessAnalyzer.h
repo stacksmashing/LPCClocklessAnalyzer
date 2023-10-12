@@ -33,6 +33,7 @@ protected: //vars
 
 	//Serial analysis vars:
 	U32 mSampleRateHz;
+	U32 mSamplesPerBit;
 	U32 mStartOfStopBitOffset;
 	U32 mEndOfStopBitOffset;
 
@@ -40,6 +41,10 @@ private:
 	uint8_t getBits();
 	void advanceAllToFrame();
 	void addFrameLabel(uint64_t start, uint64_t end, uint64_t label);
+	uint32_t readAddress();
+	void skipTar();
+	uint8_t readData();
+	uint8_t readSync();
 };
 
 extern "C" ANALYZER_EXPORT const char* __cdecl GetAnalyzerName();
